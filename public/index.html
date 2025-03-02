@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Storyteller</title>
+    <style>
+        /* General Styling */
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #fff;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37);
+            width: 100%;
+            max-width: 600px;
+            transition: transform 0.3s ease-in-out;
+        }
+        .container:hover {
+            transform: scale(1.02);
+        }
+        h1 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 30px;
+            color: #ffd700;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Story Display */
+        #story {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 20px;
+            border-radius: 10px;
+            min-height: 100px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            color: #f0f0f0;
+            white-space: pre-wrap;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Input and Controls */
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        input[type="text"], select {
+            padding: 12px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: box-shadow 0.3s ease;
+            width: 100%;
+        }
+        input[type="text"]:focus, select:focus {
+            outline: none;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Buttons */
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+        button {
+            padding: 12px 20px;
+            background-color: #ffd700;
+            color: #1e3c72;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            flex: 1 1 auto;
+            min-width: 120px;
+        }
+        button:hover {
+            background-color: #e6c200;
+            transform: translateY(-2px);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        #clear-btn {
+            background-color: #ff4d4d;
+        }
+        #clear-btn:hover {
+            background-color: #e60000;
+        }
+        #delete-btn {
+            background-color: #ff6b6b;
+        }
+        #delete-btn:hover {
+            background-color: #ff4040;
+        }
+
+        /* Loading Spinner */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #ffd700;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: none;
+            margin: 10px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 600px) {
+            .controls {
+                grid-template-columns: 1fr;
+            }
+            input[type="text"], select {
+                margin-right: 0;
+            }
+            button {
+                width: 100%;
+            }
+        }
+        @media (min-width: 601px) and (max-width: 900px) {
+            .controls {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI Storyteller</h1>
+        <div id="story"></div>
+        <div class="loader" id="loader"></div>
+        <div class="controls">
+            <select id="genre-select">
+                <option value="">No Genre</option>
+                <option value="Fantasy">Fantasy</option>
+                <option value="Sci-Fi">Sci-Fi</option>
+                <option value="Mystery">Mystery</option>
+            </select>
+            <select id="voice-select"></select>
+            <input type="text" id="prompt" placeholder="Start or continue the story...">
+            <input type="text" id="story-name" placeholder="Name your story to save...">
+            <select id="load-story-select">
+                <option value="">Select a story to load</option>
+            </select>
+        </div>
+        <div class="button-group">
+            <button onclick="generateText()">Generate</button>
+            <button id="speak-btn" onclick="speakStory()">Speak Story</button>
+            <button id="clear-btn" onclick="clearStory()">Clear Story</button>
+            <button onclick="saveStory()">Save Story</button>
+            <button onclick="loadStory()">Load Story</button>
+            <button id="delete-btn" onclick="deleteStory()">Delete Story</button>
+        </div>
+    </div>
+
+    <script>
+        let story = '';
+        let isSpeaking = false;
+
+        // Populate voice dropdown for text-to-speech
+        function populateVoiceList() {
+            const voices = speechSynthesis.getVoices();
+            const voiceSelect = document.getElementById('voice-select');
+            voiceSelect.innerHTML = '<option value="">Default Voice</option>';
+            voices.forEach(voice => {
+                const option = document.createElement('option');
+                option.textContent = `${voice.name} (${voice.lang})`;
+                option.value = voice.name;
+                voiceSelect.appendChild(option);
+            });
+        }
+        speechSynthesis.onvoiceschanged = populateVoiceList;
+        populateVoiceList();
+
+        // Populate saved stories dropdown
+        function updateStoryList() {
+            const loadSelect = document.getElementById('load-story-select');
+            loadSelect.innerHTML = '<option value="">Select a story to load</option>';
+            const savedStories = Object.keys(localStorage).filter(key => key.startsWith('story_'));
+            savedStories.forEach(key => {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = key.replace('story_', '');
+                loadSelect.appendChild(option);
+            });
+        }
+        updateStoryList();
+
+        // Clean unwanted phrases from text
+        function cleanText(text) {
+            const unwantedPhrases = ["Related Links", "Go to end of overview", "More Information"];
+            unwantedPhrases.forEach(phrase => {
+                text = text.replace(new RegExp(phrase, 'gi'), '');
+            });
+            return text.trim();
+        }
+
+        // Generate story with genre and cleaned text
+        async function generateText() {
+            const prompt = document.getElementById('prompt').value;
+            const genre = document.getElementById('genre-select').value;
+            const fullPrompt = genre ? `${genre} story: ${prompt}` : prompt;
+            if (!prompt) return;
+
+            document.getElementById('loader').style.display = 'block';
+
+            try {
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ story, prompt: fullPrompt })
+                });
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
+                const cleanedContinuation = cleanText(data.continuation);
+                story += ' ' + cleanedContinuation;
+                document.getElementById('story').innerText = story;
+                document.getElementById('prompt').value = '';
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+                console.error(error);
+            } finally {
+                document.getElementById('loader').style.display = 'none';
+            }
+        }
+
+        // Speak the story with selected voice
+        function speakStory() {
+            if ('speechSynthesis' in window) {
+                if (isSpeaking) {
+                    speechSynthesis.cancel();
+                    isSpeaking = false;
+                    document.getElementById('speak-btn').innerText = 'Speak Story';
+                } else {
+                    const utterance = new SpeechSynthesisUtterance(story);
+                    const selectedVoice = document.getElementById('voice-select').value;
+                    const voices = speechSynthesis.getVoices();
+                    if (selectedVoice) {
+                        utterance.voice = voices.find(voice => voice.name === selectedVoice);
+                    }
+                    utterance.onend = () => {
+                        isSpeaking = false;
+                        document.getElementById('speak-btn').innerText = 'Speak Story';
+                    };
+                    speechSynthesis.speak(utterance);
+                    isSpeaking = true;
+                    document.getElementById('speak-btn').innerText = 'Stop Speaking';
+                }
+            } else {
+                alert('Sorry, your browser does not support text-to-speech.');
+            }
+        }
+
+        // Clear the story
+        function clearStory() {
+            story = '';
+            document.getElementById('story').innerText = '';
+        }
+
+        // Save story to localStorage with a custom name
+        function saveStory() {
+            const storyName = document.getElementById('story-name').value.trim();
+            if (!storyName) {
+                alert('Please enter a name for your story!');
+                return;
+            }
+            if (!story) {
+                alert('No story to save!');
+                return;
+            }
+            const key = `story_${storyName}`;
+            localStorage.setItem(key, story);
+            alert(`Story "${storyName}" saved!`);
+            document.getElementById('story-name').value = '';
+            updateStoryList();
+        }
+
+        // Load story from localStorage based on selection
+        function loadStory() {
+            const selectedKey = document.getElementById('load-story-select').value;
+            if (!selectedKey) {
+                alert('Please select a story to load!');
+                return;
+            }
+            story = localStorage.getItem(selectedKey) || '';
+            document.getElementById('story').innerText = story;
+        }
+
+        // Delete story from localStorage
+        function deleteStory() {
+            const selectedKey = document.getElementById('load-story-select').value;
+            if (!selectedKey) {
+                alert('Please select a story to delete!');
+                return;
+            }
+            if (confirm(`Are you sure you want to delete "${selectedKey.replace('story_', '')}"?`)) {
+                localStorage.removeItem(selectedKey);
+                updateStoryList();
+                if (story === localStorage.getItem(selectedKey) || !localStorage.getItem(selectedKey)) {
+                    story = '';
+                    document.getElementById('story').innerText = '';
+                }
+                alert(`Story "${selectedKey.replace('story_', '')}" deleted!`);
+            }
+        }
+    </script>
+</body>
+</html>
